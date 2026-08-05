@@ -48,11 +48,18 @@ async def get_downstream(table_name):
 
 def format_comment(table_name, lineage_data):
     downstreams = lineage_data.get("downstreams", {}).get("searchResults", [])
-    if not downstreams:
+
+    # Filter out the duckdb/dbt sibling self-reference
+    real_downstreams = [
+        d for d in downstreams
+        if table_name.lower() not in d["entity"].get("name", "").lower()
+    ]
+
+    if not real_downstreams:
         return f"✅ **Cross-Domain Break Predictor**: No downstream dependents found for `{table_name}`. This change looks low-risk."
 
-    lines = [f"⚠️ **Cross-Domain Break Predictor**: `{table_name}` has {len(downstreams)} downstream dependent(s):\n"]
-    for d in downstreams:
+    lines = [f"⚠️ **Cross-Domain Break Predictor**: `{table_name}` has {len(real_downstreams)} downstream dependent(s):\n"]
+    for d in real_downstreams:
         entity = d["entity"]
         name = entity.get("name", "unknown")
         owners = entity.get("ownership", {}).get("owners", [])
