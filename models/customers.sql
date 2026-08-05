@@ -1,4 +1,4 @@
--- harmless test edit, no downstream impact expected as usual
+-- i need to get this staright, slight modification
 with customers as (
 
     select * from {{ ref('stg_customers') }}
