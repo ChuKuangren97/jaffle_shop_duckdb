@@ -46,10 +46,27 @@ async def get_downstream(table_name):
         })
         return result.data
 
+async def tag_reviewed(urn):
+    config = {
+        "mcpServers": {
+            "datahub": {
+                "command": "mcp-server-datahub",
+                "env": {
+                    "DATAHUB_GMS_URL": GMS_URL,
+                    "TOOLS_IS_MUTATION_ENABLED": "true"
+                }
+            }
+        }
+    }
+    async with Client(config) as client:
+        await client.call_tool("add_tags", {
+            "tag_urns": ["urn:li:tag:break-predictor-reviewed"],
+            "entity_urns": [urn]
+        })
+
 def format_comment(table_name, lineage_data):
     downstreams = lineage_data.get("downstreams", {}).get("searchResults", [])
 
-    # Filter out the duckdb/dbt sibling self-reference
     real_downstreams = [
         d for d in downstreams
         if table_name.lower() not in d["entity"].get("name", "").lower()
@@ -70,32 +87,3 @@ def format_comment(table_name, lineage_data):
         ]
         owner_str = ", ".join(owner_names) if owner_names else "no listed owner"
         lines.append(f"- **{name}** (owner: {owner_str})")
-
-    lines.append("\nPlease confirm with the listed owners before merging this change.")
-    return "\n".join(lines)
-
-def post_comment(body):
-    url = f"https://api.github.com/repos/{REPO}/issues/{PR_NUMBER}/comments"
-    resp = requests.post(url, headers=HEADERS, json={"body": body})
-    resp.raise_for_status()
-
-def main():
-    files = get_changed_files()
-    tables = extract_table_names(files)
-
-    if not tables:
-        post_comment("ℹ️ **Cross-Domain Break Predictor**: No dbt model files changed — nothing to check.")
-        return
-
-    comments = []
-    for table in tables:
-        try:
-            lineage_data = asyncio.run(get_downstream(table))
-            comments.append(format_comment(table, lineage_data))
-        except Exception as e:
-            comments.append(f"⚠️ Could not check lineage for `{table}`: {e}")
-
-    post_comment("\n\n---\n\n".join(comments))
-
-if __name__ == "__main__":
-    main()
