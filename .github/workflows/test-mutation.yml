@@ -1,0 +1,53 @@
+name: Test Mutation Tools (manual only)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-mutation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install fastmcp mcp-server-datahub
+
+      - name: Check installed version
+        run: pip show mcp-server-datahub | grep Version
+
+      - name: Inspect add_tags tool schema
+        env:
+          DATAHUB_GMS_URL: "http://32.198.1.105:8080"
+        run: |
+          cat > inspect.py << 'EOF'
+          import asyncio
+          import json
+          import os
+          from fastmcp import Client
+
+          config = {
+              "mcpServers": {
+                  "datahub": {
+                      "command": "mcp-server-datahub",
+                      "env": {
+                          "DATAHUB_GMS_URL": os.environ["DATAHUB_GMS_URL"],
+                          "TOOLS_IS_MUTATION_ENABLED": "true"
+                      }
+                  }
+              }
+          }
+
+          async def main():
+              async with Client(config) as client:
+                  tools = await client.list_tools()
+                  print("Available tools:", [t.name for t in tools])
+                  for t in tools:
+                      if t.name == "add_tags":
+                          print(json.dumps(t.inputSchema, indent=2))
+
+          asyncio.run(main())
+          EOF
+          python inspect.py
