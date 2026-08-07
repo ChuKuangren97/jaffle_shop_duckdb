@@ -23,7 +23,7 @@ jobs:
         run: pip install fastmcp mcp-server-datahub requests
 
       - name: Run break predictor
-       env:
+        env:
           DATAHUB_GMS_URL: "http://32.198.1.105:8080"
           TOOLS_IS_MUTATION_ENABLED: "true"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
