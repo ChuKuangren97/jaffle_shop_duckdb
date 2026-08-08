@@ -4,60 +4,75 @@
 
 An agent that catches breaking data pipeline changes before they merge. When a pull
 request modifies a dbt model, this GitHub Action asks DataHub's MCP Server what
-actually depends on that table downstream and posts a plain-English warning
+actually depends on that table downstream — and posts a plain-English warning
 directly on the PR, naming the affected tables and owners, before anyone merges
-something that breaks a dashboard three tables away.
+something that breaks a dashboard three tables away. It then writes a review tag
+back into DataHub itself, so the next person browsing the catalog inherits that
+context too — not just whoever happened to see the PR.
 
 ## Why this exists
 
 AI agents (and humans) generating pipeline code don't know what's actually
 connected to what in a real data estate. This project uses DataHub's real lineage
-graph, not guesswork to close that gap automatically, on every pull request.
+graph — not guesswork — to close that gap automatically, on every pull request,
+and leaves a durable trace of the check in DataHub's own graph, not just on GitHub.
 
 ## See it work — real examples, not staged
 
 - **[PR #4](../../pull/4)** — editing `stg_orders.sql` correctly triggers a warning:
-  3 downstream dependents found (`customers`, `orders`, and its own duckdb sibling),
-  with real owner names pulled live from DataHub.
+  downstream dependents found (`customers`, `orders`), with real owner names pulled
+  live from DataHub.
 - **[PR #6](../../pull/6)** — editing `customers.sql` (a terminal table with no real
-  dependents) correctly returns a low-risk message proving the agent distinguishes
-  actual risk from no risk, rather than just always warning.
+  dependents) correctly returns a low-risk message — proving the agent distinguishes
+  actual risk from no risk, rather than always warning.
+- **[PR #8](../../pull/8)** — the full loop: a warning comment posted to GitHub *and*
+  a `break-predictor-reviewed` tag written live to the `stg_orders` entity in
+  DataHub — visible on the entity page itself, independently of the PR.
 
-Both ran against a live, self-hosted DataHub instance with real lineage ingested
-from this exact dbt project nothing here is mocked.
+Every result ran against a live, self-hosted DataHub instance with real lineage
+ingested from this exact dbt project — nothing here is mocked. See `examples/` for
+static copies of each output in case the live instance is unreachable when you check.
 
 ## Try it yourself
 
 1. Fork this repository.
 2. Edit any file under `models/` (e.g. add a comment to `models/stg_orders.sql`).
 3. Open a pull request from your fork against the `duckdb` branch.
-4. Watch the **Checks** tab the `break-predictor` workflow will run automatically
-   and post a comment with real lineage-based impact analysis.
+4. Watch the **Checks** tab — the `break-predictor` workflow will run automatically,
+   post a comment with real lineage-based impact analysis, and (for tables with real
+   dependents) write a review tag back to the relevant entity in DataHub.
 
 *(Note: since this queries a specific DataHub instance seeded with this project's
 lineage, forking and running against your own DataHub instance requires updating
 the `DATAHUB_GMS_URL` in `.github/workflows/break-predictor.yml`. Reach out if you'd
-like access to the live instance used for this demo.)*
+like access to the live instance used for this demo — it will remain running through
+the hackathon's judging period, August 17–31, 2026.)*
 
 ## How it works
 
 1. A pull request changes a `.sql` file under `models/`.
 2. A GitHub Action triggers automatically.
 3. The agent identifies the changed table and calls DataHub's MCP Server (`search`,
-   `get_lineage`) to find everything downstream of it dashboards, other models,
+   `get_lineage`) to find everything downstream of it — dashboards, other models,
    and their owners.
 4. It formats a plain-English summary and posts it as a PR comment.
-5. If there's nothing downstream, it says so proven risk-free, not just silent.
+5. If there's nothing downstream, it says so — proven risk-free, not just silent.
+6. For tables with real downstream dependents, the agent writes a
+   `break-predictor-reviewed` tag back to that table's entity in DataHub via the
+   `add_tags` mutation tool — a second, independent record of the check, visible to
+   anyone browsing the catalog directly, not just PR readers.
 
 ## Tech stack
 
 - **DataHub** (self-hosted, v1.5.0.6) — the context/lineage graph
-- **DataHub MCP Server** (`mcp-server-datahub`) — agent access to search & lineage
+- **DataHub MCP Server** (`mcp-server-datahub`, v0.6.0 in CI) — agent access to
+  search, lineage, and mutation tools (tags, ownership, descriptions, and more)
 - **[jaffle_shop_duckdb](https://github.com/dbt-labs/jaffle_shop_duckdb)** — real,
   recognizable dbt sample project, ingested via `dbt-duckdb` for genuine (not faked)
   lineage
 - **GitHub Actions** — the trigger and delivery mechanism
 - **Python** (`fastmcp`, `requests`) — the agent logic itself
+- **AWS EC2** — self-hosted DataHub instance, reachable from GitHub Actions
 
 ## License
 
@@ -67,6 +82,8 @@ Apache 2.0 (inherited from the original jaffle_shop_duckdb project — see `LICE
 
 *Original jaffle_shop_duckdb documentation below, kept for reference on the
 underlying demo dataset.*
+
+---
 
 ---
 # Testing dbt project: `jaffle_shop`
