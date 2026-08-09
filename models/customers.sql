@@ -1,4 +1,5 @@
 -- i need to get this staright, slight modification
+-- light change
 with customers as (
 
     select * from {{ ref('stg_customers') }}
